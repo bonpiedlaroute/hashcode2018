@@ -63,20 +63,9 @@ struct  Comp
          }
          else
          {*/
-            if (R1->last_start < R2->last_start)
-            {
-               return true;
-            }
-            else
-            {
-               if (R1->last_start > R2->last_start)
-                  return false;
-               else
-               {
+            return (R1->last_start < R2->last_start)
 
-                  return R1->margin < R2->margin;
-               }
-            }
+
 
         /* }
       }*/
