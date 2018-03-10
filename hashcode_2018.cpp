@@ -11,6 +11,7 @@
 #include <set>
 #include <utility>
 #include <algorithm>
+#include <limits>
 
 
 struct Ride
@@ -28,7 +29,7 @@ struct Ride
    int end_tick;
    int x;
    int y;
-   bool used;
+   int margin;
 };
 
 struct Vehicule
@@ -41,15 +42,10 @@ struct Vehicule
    std::vector<Ride*> myrides;
    bool status;
    int ride_id;
-   Ride* ride;
+   Ride* last_ride;
 };
 
 std::vector<Vehicule*> vehicules;
-
-
-
-
-
 
 struct  Comp
 {
@@ -78,60 +74,61 @@ struct  Comp
                else
                {
 
-                  return R1->earliest_start < R2->earliest_start;
+                  return R1->margin < R2->margin;
                }
             }
 
-         /*}
+        /* }
       }*/
 
    }
 };
 
-int getNearestVehicule(int last_finish, int startx, int starty, bool& found)
+int getNearestVehicule(int last_finish, int startx, int starty, Ride* ride, int tick)
 {
-   int best_vehicule = 0;
-   int best_distance = -1;
+   int best_vehicule = -1;
+   int best_distance = std::numeric_limits<int>::max();
    int new_distance = -1;
-   found = false;
+   int distance_to_last_start = ride->last_start - tick;
+   int distance_to_earliest_start = ride->earliest_start - tick;
 
    for (auto vehicule : vehicules) 
    {
-
-      if (vehicule->startx == startx && vehicule->starty == starty)
-      {
-         best_vehicule = vehicule->id - 1;
-         found = true;
-         return best_vehicule;
-      }
-
       if (!vehicule->status)
       {
-            continue;
+         continue;
       }
- 
+
       new_distance = abs(vehicule->startx - startx) + abs(vehicule->starty - starty);
 
-      if (best_distance == -1)
+      if (new_distance == distance_to_earliest_start)
       {
-         best_distance = new_distance;
          best_vehicule = vehicule->id - 1;
-         found = true;
-
-      }    
-      else if (new_distance < best_distance) {
-        
-         best_distance = new_distance;
-         best_vehicule = vehicule->id - 1;
-         found = true;
+         return best_vehicule;
       }
-      
+      else
+      {
+         if (new_distance < distance_to_earliest_start)
+         {
+            return -1;
+         }
+         else
+         {
+            if (new_distance < distance_to_last_start)
+            {
+               if (new_distance < best_distance)
+               {
+                  best_distance = new_distance;
+                  best_vehicule = vehicule->id - 1;
+               }
+            }
+         }
+      }   
    }
 
    return best_vehicule;
 
 }
-
 
 enum class ReadingState : char
 {
@@ -194,6 +191,7 @@ int main()
             auto vehicule = new Vehicule();
             vehicule->id = i + 1;
             vehicule->status = true;
+            vehicule->last_ride = nullptr;
             vehicules.push_back(vehicule);
          }
 
@@ -214,6 +212,7 @@ int main()
          rideList[currentRide]->earliest_start = atoi(words[4].c_str());
          rideList[currentRide]->last_finish = atoi(words[5].c_str());
          rideList[currentRide]->last_start = rideList[currentRide]->last_finish - rideList[currentRide]->length;
+         rideList[currentRide]->margin = rideList[currentRide]->last_finish - rideList[currentRide]->earliest_start;
          rideList[currentRide]->id = currentRide;
          rideList[currentRide]->start_tick = -1;
          currentRide++;
@@ -248,60 +247,34 @@ int main()
 
       for (auto ride : sortedRides)
       {
-         bool found = false;
          if (ride->start_tick != -1)
             continue;
-         int id_vehicule = getNearestVehicule(ride->last_start, ride->startx, ride->starty, found);
-         if (found)
+         int id_vehicule = getNearestVehicule(ride->last_start, ride->startx, ride->starty, ride, tick);
+         if (id_vehicule != -1 )
          {
             vehicules[id_vehicule]->myrides.push_back(ride);
             vehicules[id_vehicule]->status = false;
-           
+            vehicules[id_vehicule]->last_ride = ride;
 
             ride->start_tick = tick;
-
-         }
-         else
-         {
-
+            ride->end_tick = tick + ride->length;
          }
 
       }
       tick++;
       for (Vehicule* vehicule : vehicules)
       {
-         for (auto ride: vehicule->myrides)
+         auto ride = vehicule->last_ride;
+         
+         if(ride != nullptr && ride->end_tick == tick)
          {
-            /* need a heuristic to determine, which coordinate (x or y) should be take first ( the best move
-            depending of the potential rides that can be take on the path)
-            */
-            if (vehicule->startx < ride->endx)
-               vehicule->startx +=1;
-            else
-               if (vehicule->startx > ride->endx)
-               {
-                  vehicule->startx -= 1;
-               }
-               else
-               {
-                  if (vehicule->starty < ride->endy)
-                     vehicule->starty += 1;
-                  else
-                     if (vehicule->starty > ride->endy)
-                     {
-                        vehicule->starty -= 1;
-                     }
-                     else
-                     {
-                        vehicule->status = true;
-
-                        sortedRides.erase(ride);
-                     }
-               }
-
-            }
-
+            vehicule->status = true;
+            vehicule->startx = ride->endx;
+            vehicule->starty = ride->endy;
+            sortedRides.erase(ride);
          }
+          
+       }
          
       }
 
